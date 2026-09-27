@@ -33,24 +33,26 @@
 
 (defun replay-trace (driver trace &key (variables :all) (check-initial t))
   "Replay TRACE on a SUT built by MBT-INIT. Signals SPEC-CONFORMANCE-DIVERGENCE (restarts CONTINUE,
-ABORT-TRACE) when the SUT disagrees with a trace state. Returns the SUT."
+ABORT-TRACE) when the SUT disagrees with a trace state. Returns (values SUT status) where
+status is :OK or :ABORTED."
   (let* ((states (spec-protocol.itf:trace-states trace))
          (initial (first states))
          (sut (mbt-init driver initial)))
     (unless (spec-protocol.itf:state-action-taken initial)
       (error 'spec-protocol:spec-error
              :message "trace has no mbt::actionTaken — produce it with quint run --mbt"))
-    (restart-case
-        (progn
-          (when check-initial (%check-state driver sut trace initial variables "init"))
-          (loop for state in (rest states)
-                for action = (spec-protocol.itf:state-action-taken state)
-                do (mbt-apply driver sut action (spec-protocol.itf:state-nondet-picks state) state)
-                   (%check-state driver sut trace state variables action)))
-      (abort-trace ()
-        :report "Stop replaying this trace."
-        nil))
-    sut))
+    (values sut
+            (restart-case
+                (progn
+                  (when check-initial (%check-state driver sut trace initial variables "init"))
+                  (loop for state in (rest states)
+                        for action = (spec-protocol.itf:state-action-taken state)
+                        do (mbt-apply driver sut action (spec-protocol.itf:state-nondet-picks state) state)
+                           (%check-state driver sut trace state variables action))
+                  :ok)
+              (spec-protocol:abort-trace ()
+                :report "Stop replaying this trace."
+                :aborted)))))
 
 (defun replay-traces (driver traces &rest keys)
   (mapcar (lambda (tr) (apply #'replay-trace driver tr keys)) traces))

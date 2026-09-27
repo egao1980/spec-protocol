@@ -101,10 +101,11 @@
                      (let ((mode (cdr (%assoc-name sym (penv-ops env)))))
                        (if (member mode '(:pure-val :pure-def)) :pure-op :op)))
                     ((%label-p sym env) :label)
-                    (t (%fail sym "unknown name ~a" sym)))))
-    (if (eq kind :label)
-        (make-instance 'variant-expr :label (%label-keyword sym))
-        (make-instance 'name-ref :name sym :kind kind))))
+                    (t nil))))
+    (case kind
+      ((nil) (%fail sym "unknown name ~a" sym))
+      (:label (make-instance 'variant-expr :label (%label-keyword sym)))
+      (t (make-instance 'name-ref :name sym :kind kind)))))
 
 (defun %assign (form var value env)
   (unless (penv-action-p env) (%fail form "assignment outside an action"))
@@ -234,17 +235,33 @@
           append (mapcar (lambda (d) (cons d t)) (cdr f))
         else collect (cons f nil)))
 
-(defun %param-list-p (x)
+(defparameter *special-heads*
+  '("SETF" "INCF" "DECF" "ALL" "ANY" "IF" "LET" "LAMBDA" "MATCH" "NONDET" "REC" "FIELD"
+    "MAP-OF" "MAP-LIT" "WITH" "ITEM" "OLD" "RESULT"))
+
+(defun %operator-name-p (sym env)
+  (and (symbolp sym)
+       (or (member (symbol-name sym) *special-heads* :test #'string=)
+           (builtin sym)
+           (%assoc-name sym (penv-ops env))
+           (%label-p sym env))))
+
+(defun %param-list-p (x env)
+  "A parameter list is a list of plain symbols or (symbol type) pairs whose first element
+is not an operator — so (incf x) as the first body form is not mistaken for parameters."
   (and (listp x)
        (every (lambda (p) (or (and (symbolp p) p (not (keywordp p)))
                               (and (consp p) (symbolp (first p)) (= (length p) 2))))
-              x)))
+              x)
+       (or (null x)
+           (let ((head (if (consp (first x)) (first (first x)) (first x))))
+             (not (%operator-name-p head env))))))
 
-(defun %clause-p (x) (and (consp x) (member (car x) '(:requires :guard :ensures))))
+(defun %clause-p (x) (and (consp x) (member (car x) '(:requires :guard :ensures :returns))))
 
-(defun %split-op-form (mode form)
+(defun %split-op-form (mode form env)
   "-> (values name params clauses body doc). Params are optional; clauses are
-(:requires …) (:guard …) (:ensures …) lists between params and body."
+(:requires …) (:guard …) (:ensures …) (:returns T) lists between params and body."
   (let* ((rest (cddr form))
          (name (second form))
          (params nil)
@@ -252,7 +269,7 @@
          (clauses '()))
     (when (and (member mode '(:pure-def :def :action))
                (> (length rest) 1)
-               (%param-list-p (first rest))
+               (%param-list-p (first rest) env)
                (not (%clause-p (first rest))))
       (setf params (first rest) rest (cdr rest)))
     (when (and (> (length rest) 1) (stringp (first rest)))
@@ -301,12 +318,13 @@
           when (keywordp k) collect k and collect v)))
 
 (defun %parse-clauses (clauses env mode)
-  "-> (values requires guards ensures), each a list of exprs."
-  (let ((requires '()) (guards '()) (ensures '()))
+  "-> (values requires guards ensures return-type)."
+  (let ((requires '()) (guards '()) (ensures '()) (returns nil))
     (dolist (c clauses)
       (let ((e (copy-penv env)))
         (setf (penv-action-p e) nil)
         (ecase (car c)
+          (:returns (setf returns (parse-type (second c) env)))
           (:requires (dolist (f (cdr c)) (push (parse-expr f e) requires)))
           (:guard
            (unless (eq mode :action) (%fail c ":guard is only valid on actions"))
@@ -315,7 +333,7 @@
            (setf (penv-old-p e) (eq mode :action)
                  (penv-result-p e) (not (eq mode :action)))
            (dolist (f (cdr c)) (push (parse-expr f e) ensures))))))
-    (values (nreverse requires) (nreverse guards) (nreverse ensures))))
+    (values (nreverse requires) (nreverse guards) (nreverse ensures) returns)))
 
 (defun parse-decl (form env spec-only-p)
   (let ((head (%decl-head form)))
@@ -339,13 +357,14 @@
         ((assoc head *op-heads* :test #'string=)
          (let* ((mode (cdr (assoc head *op-heads* :test #'string=)))
                 (spec-only (or spec-only-p (member mode '(:temporal :run)))))
-           (multiple-value-bind (name params clauses body doc) (%split-op-form mode form)
+           (multiple-value-bind (name params clauses body doc) (%split-op-form mode form env)
              (let* ((plist (%params params))
                     (e (%with-scope env (mapcar #'car plist))))
                (setf (penv-action-p e) (eq mode :action)
                      (penv-spec-only-p e) (and spec-only t))
-               (multiple-value-bind (requires guards ensures) (%parse-clauses clauses e mode)
+               (multiple-value-bind (requires guards ensures returns) (%parse-clauses clauses e mode)
                  (make-instance 'op-def :name name :mode mode :params plist :doc doc
+                                        :return-type returns
                                         :invariant-p (string= head "INVARIANT")
                                         :witness-p (string= head "WITNESS")
                                         :requires requires :guards guards :ensures ensures

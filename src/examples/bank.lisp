@@ -9,6 +9,7 @@
   (var status status)
 
   (pure-def can-withdraw ((b int) (n int))
+    (:returns bool)
     (>= (- b n) 0))
 
   (val total

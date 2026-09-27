@@ -75,7 +75,7 @@
 
 (defun %plist-p (v)
   "Even-length list whose even positions are keywords: a record."
-  (and (consp v) (evenp (length v))
+  (and (consp v) (listp (cdr v)) (null (cdr (last v))) (evenp (length v))
        (loop for (k nil) on v by #'cddr always (keywordp k))))
 
 (defun lisp->itf-value (v)

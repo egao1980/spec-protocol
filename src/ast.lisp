@@ -118,8 +118,9 @@
 (defun module-invariants (m) (remove-if-not #'op-invariant-p (module-ops m)))
 (defun module-witnesses (m) (remove-if-not #'op-witness-p (module-ops m)))
 (defun module-runs (m) (remove-if-not (lambda (d) (eq (op-mode d) :run)) (module-ops m)))
-(defun module-find-decl (m name)
-  (find name (module-decls m) :key #'decl-lisp-name :test #'name=))
+(defun module-find-decl (m name &optional (type 'decl))
+  "Declaration named NAME (by NAME=), restricted to TYPE, e.g. 'type-decl or '(not type-decl)."
+  (find-if (lambda (d) (and (typep d type) (name= (decl-lisp-name d) name))) (module-decls m)))
 (defun module-labels (m)
   "All sum-type variant labels declared in M (keywords)."
   (loop for td in (module-types m)
