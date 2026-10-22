@@ -61,9 +61,12 @@
      (multiple-value-bind (tag found) (gethash "tag" v)
        (when (and found (= (hash-table-count v) 2) (nth-value 1 (gethash "value" v)))
          (let ((label (spec-protocol:demangle-name tag))
-               (payload (itf-value->lisp (gethash "value" v))))
+               (raw (gethash "value" v)))
+           ;; only the empty tuple is a bare label: Some(false) decodes to (:some . nil)
            (return-from itf-value->lisp
-             (if (null payload) label (cons label payload))))))
+             (if (and (%json-object-p raw) (equalp (gethash "#tup" raw) #()))
+                 label
+                 (cons label (itf-value->lisp raw)))))))
      (let ((plist '()))
        (maphash (lambda (k val)
                   (unless (and (plusp (length k)) (char= (char k 0) #\#))
@@ -95,7 +98,7 @@
          h))
       ((and (consp v) (keywordp (car v)))
        (obj "tag" (spec-protocol:mangle-type-name (car v))
-            "value" (if (listp (cdr v))
+            "value" (if (and (cdr v) (listp (cdr v)))
                         (obj "#tup" (map 'vector #'lisp->itf-value (cdr v)))
                         (lisp->itf-value (cdr v)))))
       ((listp v) (obj "#tup" (map 'vector #'lisp->itf-value v)))

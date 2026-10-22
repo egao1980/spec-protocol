@@ -152,7 +152,9 @@
                                           :cl ',cl :spec-only-p ,(null cl))))))
 
 (defun %not-equal (a b) (not (spec-equal a b)))
-(defun %implies (a b) (or (not a) (and b t)))
+(defmacro %implies (a b)
+  "Short-circuits like Quint: B is not evaluated when A is false."
+  `(or (not ,a) (and ,b t)))
 (defun %iff (a b) (eq (and a t) (and b t)))
 (defun %contains (set x) (set-in-p x set))
 
