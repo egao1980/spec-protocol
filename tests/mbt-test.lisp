@@ -56,6 +56,11 @@
     ;; status is not observed by this driver => ignored even with :all
     (ok (hash-table-p (spec-protocol.mbt:replay-trace (make-instance 'table-bank-driver) tr)))))
 
+(deftest instance-consts-are-evaluated
+  (let ((consts (spec-protocol.mbt:instance-consts 'bank)))
+    (ok (= 1 (length consts)))
+    (ok (spec-equal (make-set "a" "b") (cdr (first consts))))))
+
 (deftest replay-requires-mbt-metadata
   (let ((tr (spec-protocol.itf:parse-itf
              "{\"vars\": [\"x\"], \"states\": [{\"#meta\": {\"index\": 0}, \"x\": {\"#bigint\": \"1\"}}]}")))

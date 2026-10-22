@@ -68,6 +68,10 @@ status is :OK or :ABORTED."
   (let ((module (if (typep spec 'spec-protocol:spec-module) spec (spec-protocol:find-spec spec))))
     (make-instance 'clos-driver :spec module :consts consts)))
 
+(defun instance-consts (spec)
+  "Alist (const-symbol . value) of SPEC's (name or module) instance bindings, evaluated."
+  (%instance-consts (if (typep spec 'spec-protocol:spec-module) spec (spec-protocol:find-spec spec))))
+
 (defun %instance-consts (module)
   (let ((instance (spec-protocol:module-instance module)))
     (when instance

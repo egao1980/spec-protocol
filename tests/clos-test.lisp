@@ -67,6 +67,17 @@
       (ok (bump s))
       (ok (= -1 (two-vars-x s))))))
 
+(defspec lookup (:module "Lookup")
+  (var m (map int int))
+  (var k int)
+  (action init (setf m (map-lit (1 10)) k 0))
+  (invariant known-keys-positive (implies (in k (keys m)) (> (get m k) 0))))
+
+(deftest implies-short-circuits
+  (let ((s (make-instance 'lookup)))
+    (ok (init s) "consequent's (get m 0) is not evaluated when 0 is not a key")
+    (ok (check-invariants s))))
+
 (deftest postcondition-with-old
   (let ((s (make-instance 'two-vars)))
     (init s)

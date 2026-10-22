@@ -15,10 +15,11 @@
     (ok (eq :idle (decode "{\"tag\": \"Idle\", \"value\": {\"#tup\": []}}")))
     (ok (equal '(:busy . 3) (decode "{\"tag\": \"Busy\", \"value\": {\"#bigint\": \"3\"}}")))
     (ok (equal '(:half-closed-local . 1) (decode "{\"tag\": \"HalfClosedLocal\", \"value\": {\"#bigint\": \"1\"}}")))
+    (ok (equal '(:some . nil) (decode "{\"tag\": \"Some\", \"value\": false}")) "a false payload is not a bare label")
     (ok (equal (rec :a 1 :b-c "x") (decode "{\"bC\": \"x\", \"a\": {\"#bigint\": \"1\"}}")))))
 
 (deftest itf-value-round-trip
-  (dolist (v (list 7 "s" t nil :idle '(:busy . 3) (rec :a 1 :b "x") (make-set 1 2) (make-map (cons "k" (make-seq 1)))))
+  (dolist (v (list 7 "s" t nil :idle '(:busy . 3) '(:some . nil) (rec :a 1 :b "x") (make-set 1 2) (make-map (cons "k" (make-seq 1)))))
     (ok (spec-equal v (spec-protocol.itf:itf-value->lisp (spec-protocol.itf:lisp->itf-value v))) (format nil "~s" v))))
 
 (deftest read-fixture-trace
@@ -42,6 +43,15 @@
                \"states\": [{\"#meta\": {\"index\": 0}, \"BankTest::Bank::x\": {\"#bigint\": \"1\"}, \"mbt::actionTaken\": \"init\"}]}")))
     (ok (= 1 (spec-protocol.itf:state-value (first (spec-protocol.itf:trace-states tr)) "x")))
     (ok (equal '("x") (spec-protocol.itf:state-variables (first (spec-protocol.itf:trace-states tr)))))))
+
+(deftest false-nondet-picks-are-kept
+  (let* ((tr (spec-protocol.itf:parse-itf
+              "{\"vars\": [\"x\"], \"states\": [{\"#meta\": {\"index\": 0}, \"x\": true,
+                \"mbt::actionTaken\": \"flip\",
+                \"mbt::nondetPicks\": {\"b\": {\"tag\": \"Some\", \"value\": false},
+                                       \"c\": {\"tag\": \"None\", \"value\": {\"#tup\": []}}}}]}"))
+         (picks (spec-protocol.itf:state-nondet-picks (first (spec-protocol.itf:trace-states tr)))))
+    (ok (equal '((:b . nil)) picks))))
 
 (deftest write-itf-round-trip
   (let* ((tr (spec-protocol.itf:read-itf (fixture "bank-ok-1.itf.json")))

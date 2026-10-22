@@ -1,5 +1,5 @@
 (defsystem "spec-protocol"
-  :version "0.1.0"
+  :version "0.1.1"
   :description "One defspec = CLOS protocol + formal spec (Quint/TLA+) for cl-stack; ITF traces; MBT replay"
   :author "egao1980"
   :license "MIT"
