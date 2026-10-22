@@ -84,7 +84,8 @@
   (:export
    #:mbt-driver #:mbt-init #:mbt-apply #:mbt-observe #:mbt-compare
    #:replay-trace #:replay-traces
-   #:clos-driver #:make-clos-driver #:clos-driver-spec #:clos-driver-consts))
+   #:clos-driver #:make-clos-driver #:clos-driver-spec #:clos-driver-consts
+   #:instance-consts))
 
 (defpackage #:spec-protocol.examples
   (:use #:cl #:spec-protocol)
